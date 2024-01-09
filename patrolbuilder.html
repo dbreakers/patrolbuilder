@@ -1,0 +1,764 @@
+<html>
+
+<head>
+    <link rel="stylesheet" type="text/css"
+        href="https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/themes/smoothness/jquery-ui.css">
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script type="text/javascript" src=" https://ajax.googleapis.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js">
+    </script>
+    <script type="text/javascript" src=" https://www.2ndnewhawscouts.org.uk/osmr/vfs_fonts.js"></script>
+    <script type="text/javascript" src=" https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.33/pdfmake.js"></script>
+    <script type="text/javascript" src=" https://www.2ndnewhawscouts.org.uk/osmr/vfs_fonts.js"></script>
+    <script src='https://js.sentry-cdn.com/e7765bb8daf149f0adc902a3b52aec0c.min.js' crossorigin="anonymous"></script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <style>
+        #sortable {
+            list-style-type: none;
+            margin: 0;
+            padding: 0;
+            width: 60%;
+        }
+
+        #sortable li {
+            margin: 0 3px 3px 3px;
+            padding: 0.4em;
+            padding-left: 1.5em;
+            font-size: 1.4em;
+            height: 18px;
+        }
+
+        #sortable li span {
+            position: absolute;
+            margin-left: -1.3em;
+        }
+
+        .grid {
+            width: 142px;
+            min-height: 200px;
+            float: left;
+            margin: 50px;
+        }
+
+        .gridcolor1 {
+            background: lightblue;
+        }
+
+        .gridcolor2 {
+            background: lightsalmon;
+        }
+
+        .gridcolor3 {
+            background: lightyellow;
+        }
+
+        .osmr_toolbar {
+            background: #4D2177;
+            padding: 20px;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        .osmr_builder {
+            font-family: sans-serif;
+        }
+
+        .connectedSortable {
+            font-family: sans-serif;
+            font-size: 10pt;
+            margin-left: 0px;
+            padding-left: 0px;
+            list-style-type: none;
+        }
+
+        .connectedSortable li {
+            padding: 3pt;
+            margin-left: 0px;
+        }
+
+        .scout0 {
+            border: solid;
+            padding: 10px;
+            list-style-type: none;
+            background: aliceblue;
+            border-radius: 10px;
+        }
+
+        .scout3 {
+            border: solid;
+            padding: 10px;
+            list-style-type: none;
+            background: #CBC3E3;
+            border-radius: 10px;
+        }
+
+        .scout2 {
+            border: solid;
+            padding: 10px;
+            list-style-type: none;
+            background: mistyrose;
+            border-radius: 10px;
+        }
+
+        .scout1 {
+            border: solid;
+            padding: 10px;
+            list-style-type: none;
+            background: #d0f0c0;
+            border-radius: 10px;
+        }
+
+        .scout:hover {
+            cursor: move;
+        }
+
+        .extra {
+            width: 100%;
+            padding: 2px;
+        }
+
+        .age {
+            font-size: 8pt;
+            text-align: right;
+            width: 50%;
+            display: block;
+            float: right;
+        }
+
+        .patrol {
+            font-size: 8pt;
+            text-align: left;
+            width: 75%;
+            display: block;
+            float: left;
+        }
+
+        .name {
+            font-size: 12pt;
+        }
+
+        a {
+            color: white;
+        }
+
+        a:visited {
+            color: yellow;
+        }
+    </style>
+    <script>
+        var osmrelay = "https://osmr.elementfx.com/osmrelayoa2.php";
+var security = new Object();
+var logged_on = false;
+var  oauthcode = "";
+var url_list=[];
+var resource_url = 'https://www.onlinescoutmanager.co.uk/oauth/resource';
+security = null;
+
+  $( function() {
+    $( "#sortable1" ).sortable({
+      items: "li:not(.ui-state-disabled)",
+      connectWith: ".connectedSortable",
+   stop: set_counts    });
+  
+    set_counts();
+    $("#osmr_loggedon").toggle();
+    $(".osmr_builder").toggle();
+    $(".section-select").change(function() {update_terms()});
+
+  } );
+
+
+function update_terms(){
+$(".term-select option").remove();
+$(".event-select option").remove();
+var section_id = $(".section-select").val();
+var current_term
+current_term = -1;
+for(var property in terms_config[section_id]) {
+//       $("select.term-select").append("<option value=\""+terms_config[section_id][property].termid+"\">"+terms_config[section_id][property].name+"</option>");
+    if (terms_config[section_id][property].past)
+    {
+      current_term = property;
+    }
+ }
+if (current_term!=-1) {
+$("select.term-select").append("<option value=\""+terms_config[section_id][current_term].termid+"\">"+terms_config[section_id][current_term].name+"</option>");
+}
+
+}
+
+function update_patrols() {
+//https://www.onlinescoutmanager.co.uk/ext/settings/patrols/?action=get&sectionid=26965
+var section_id = $(".section-select").val();
+url = "https://www.onlinescoutmanager.co.uk/ext/settings/patrols/?action=get&sectionid="+section_id;
+do_xhr(url,update_patrol_list,"");
+
+}
+
+function update_patrol_list(text) {
+patrol_config = JSON.parse(text);
+clear_groups();
+for(var property in patrol_config.patrols) {
+add_group(patrol_config.patrols[property].name,patrol_config.patrols[property].patrolid);
+}
+}
+
+  function set_counts(event, ui) {
+   var num = $(".connectedSortable").size();
+   
+   for (i=2; i<=num; i++) {
+     $("#sortable"+i+" .label").html("<b>Count:</b> "+$("#sortable"+i+" li").size());
+     var age = 0;
+     $("#sortable"+i+" li").each(function(){
+                member = members_config.data[$(this).attr("id")]; 
+                if (members_config.data.hasOwnProperty($(this).attr("id"))) {
+                  if (member.age!="") {
+                age = age + 12*eval(member.age.substring(0,member.age.search("/")-1))+eval(member.age.substring(member.age.search("/")+1));
+                }
+                }
+     })
+     if ($("#sortable"+i+" li").size() > 0) {
+     age = age / $("#sortable"+i+" li").size();
+     }
+     $("#sortable"+i+" .label_age").html("<b>Average Age:</b>" + ((age-age%12)/12)+ " / " + (age%12).toFixed(0));
+     // Lets sort this ul
+     var items = jQuery("#sortable"+i+" li");
+     jQuery("#sortable"+i+" li").remove();
+     //$(items[1]).find("div.extra span.age").html()
+     s=[];
+     for (var k=0;k<items.length;k++) { s.push(k); }
+     for (j=0; j<items.length; j++) {
+       for (k=j+1;k<items.length;k++) {
+           pl = $(items[s[k]]).find("div")[0].className;
+           pl = pl.charAt(pl.length - 1);
+           pl2 = $(items[s[j]]).find("div")[0].className;
+           pl2 = pl2.charAt(pl2.length - 1);
+           if (pl>pl2)  {
+              temp = s[j];
+              s[j] = s[k];
+              s[k]= temp;
+           } else if (pl==pl2) {
+              pl = $(items[s[k]]).find("div.extra span.age").html().split("/");
+              a = pl[0]*12+(pl[1]*1);
+              pl2 = $(items[s[j]]).find("div.extra span.age").html().split("/");
+              a2 = pl2[0]*12+(pl2[1]*1);
+              if (a>a2) {
+                  temp = s[j];
+              s[j] = s[k];
+              s[k]= temp;
+              }
+           }
+       }  
+     }
+ //    for (var j=10;j>-1;j--) {
+        for (var k=0;k<items.length;k++) {
+        //    if($(items[k]).find("div")[0].className=="scout"+j) {
+                jQuery("#sortable"+i+"").append(items[s[k]]);
+         //   }
+        }    
+    // }
+   } 
+  }
+
+
+  function add_group(name,id) {
+    //$("#sortable2 span.name").text()
+    var ok = true;
+    var num = $(".connectedSortable").size();
+    for (i=2; i<=num; i++) {
+     if($("#sortable"+i+" span.name").text()==name){
+       ok=false;
+     }
+   } 
+   if (name=="") { ok = false; };	
+   if (ok) {
+    var count = $(".grid").size() + 1;
+    var gridcol = "gridcolor" +( (count%3)+1);
+    $("body").append("<ul id='sortable"+count+"' class='connectedSortable grid "+gridcol+"'><span class=\"head\" id=\""+name+"%%"+id+"\"><span class='name'><b>"+name+"</b></span><br><span class='label'><b>Count:</b></span><br><span class='label_age'><b>Age:</B></span><br></span></ul>");
+   $( "#sortable"+count ).sortable({
+      items: "li:not(.ui-state-disabled)",
+      connectWith: ".connectedSortable",
+      stop: set_counts
+    });
+    } else
+    {alert("You already have a Group with Name "+ $("#fname").val())} 
+  }
+
+function do_xhr_post(url,f,p) {
+var osmpath = url.substring(37,url.indexOf("?"));
+url = osmrelay +"?osmpath="+osmpath+"&"+url.substring(url.indexOf("?")+1,1000);
+
+ 
+
+
+var obj = $.extend({}, p);
+$.ajax({
+			url: url,
+			type: 'POST',
+			headers: {"Authorization" : 'Bearer '+oauthcode},
+			data: $.param(obj),
+			success: function(data,status,req){$("#rr").text(req.getResponseHeader("x-ratelimit-remaining"));$("#rt").text(req.getResponseHeader("x-ratelimit-reset"));f(data);},
+                        error: function (responseData, textStatus, errorThrown) {
+        alert('POST failed.'); }
+		});
+}
+
+
+
+function do_xhr(url,f,p) {
+//if (url!=resource_url) {
+var osmpath = url.substring(37,url.indexOf("?"));
+if (url.indexOf("?")!=-1) {
+var osmpath = url.substring(37,url.indexOf("?"));
+url = osmrelay +"?osmpath="+osmpath+"&"+url.substring(url.indexOf("?")+1,1000);
+} else { 
+    osmpath =url.substring(37,1000);
+    url = osmrelay +"?osmpath="+osmpath; 
+    
+}
+
+p2 = [];
+ 
+
+
+var obj = $.extend({}, p2);
+$.ajax({
+			url: url,
+			type: 'POST',
+			headers: {"Authorization" : 'Bearer '+oauthcode},
+			data: $.param(obj),
+			success: function(data,status,req){ $("#rr").text(req.getResponseHeader("x-ratelimit-remaining"));$("#rt").text(req.getResponseHeader("x-ratelimit-reset"));f(data);},
+                        error: function (responseData, textStatus, errorThrown) {
+        alert('POST failed.'); }
+		});
+
+}
+
+function do_xhr_list(c,f) {
+var url = url_list[c].url;
+var osmpath = url.substring(37,url.indexOf("?"));
+url = osmrelay +"?osmpath="+osmpath+"&"+url.substring(url.indexOf("?")+1,1000);
+p2 = url_list[c].params;
+ 
+
+
+var obj = $.extend({}, p2);
+$("#read_data_desc").text(url_list[c].desc);
+$(".docs").text("Updating - Please Wait this can take a while for a large section "+(c+1)+"/"+url_list.length);
+$.ajax({
+			url: url,
+			type: 'POST',
+			headers: {"Authorization" : 'Bearer '+oauthcode},
+			data: $.param(obj),
+			success: function(data,status,req){
+			    var index = "";
+			   
+ 
+
+
+  if ((url_list.length -1)  != c ) {
+       do_xhr_list(c+1,f);
+              } else { 
+              f();
+              }
+                
+			},
+                        error: function (responseData, textStatus, errorThrown) {
+        alert('POST failed.'); }
+		});
+		
+  
+}
+
+
+function get_sections(text) {
+
+    logged_on = true;
+
+if (($("#osmr_logon").is(":visible"))&&(logged_on==true)) { 
+$("#osmr_logon").toggle("slow");
+$("#osmr_loggedon").toggle("slow");
+}
+
+if (($("#osmr_loggedon").is(":visible"))&&(logged_on==false)) { 
+$("#osmr_loggedon").toggle("slow");
+$("#osmr_logon").toggle("slow");
+}
+if (($("#osmr_builder").is(":visible"))&&(logged_on==false)) { 
+$(".osmr_builder").toggle();
+}
+if (($("#osmr_builder").not(":visible"))&&(logged_on==true)) { 
+$(".osmr_builder").toggle();
+}
+if(logged_on==true) { 
+do_xhr('https://www.onlinescoutmanager.co.uk/api.php?action=getSectionConfig',set_sections,"");
+}
+}
+
+function set_sections(text) {
+ sections = text;
+ section_config = JSON.parse(sections);
+ do_xhr('https://www.onlinescoutmanager.co.uk/api.php?action=getTerms',set_terms,"");
+}
+
+function set_terms(text) {
+ terms = text;
+ do_xhr('https://www.onlinescoutmanager.co.uk/api.php?action=getUserRoles',set_roles,"");
+}
+
+function set_roles(text) {
+ roles = text;
+ roles_config = JSON.parse(roles);
+ terms_config = JSON.parse(terms);
+$(".section-select option").remove();
+ for(var property in section_config) {
+       $("select.section-select").append("<option value=\""+property+"\">"+roles_config[get_roles_section(property)].groupname+":"+roles_config[get_roles_section(property)].sectionname+"</option>");
+ }
+update_terms();
+}
+
+function get_roles_section(section) {
+var property;
+for(property in roles_config) {
+if (roles_config[property].sectionid == section) {
+        return property;
+    }
+}
+}
+
+function receiveMessage(f){
+    if (f.origin!="https://www.google.com") {
+    console.log(f)
+    oauthcode = f.data.access;
+    security = f;
+    if (oauthcode=="") { alert("There was an issue during logon OSM - please try again later"); } else {
+    var parameters = [];
+    do_xhr(resource_url,get_sections,parameters);
+    }
+    }
+}
+
+function call_report() {
+response=grecaptcha.getResponse();
+ window.open("https://osmr.elementfx.com/osmrelay_patrolbuilder.php?captchakey="+response+"&oauthset=1&scope=section:event:read%20section:programme:read","", "width=500,height=500");
+     window.addEventListener("message", receiveMessage, false);
+
+ 
+
+}
+
+function make_scout(scoutid, firstname, lastname, patrol, age, role) {
+var scoutstring = "<li id='"+scoutid+"'><div class='scout"+role+"'>"+firstname+" "+lastname+"<br><div class='extra'><span class='patrol'>"+patrol+"</span><br><span class='age'>"+age+"</span></div></li>"
+return(scoutstring);
+}
+
+
+
+function update_builder3(text) {
+event_config = JSON.parse(text);
+url = "https://www.onlinescoutmanager.co.uk/ext/members/contact/grid/?action=getMembers"
+parameters = [];
+parameters['section_id'] =$(".section-select").val();
+parameters['term_id'] = $(".term-select").val();
+do_xhr_post(url,update_builder2,parameters)
+}
+
+function update_builder2(text) {
+members_config = JSON.parse(text);
+$(".docs").attr("id",$(".event-select").val());
+$(".docs2").attr("id",$(".section-select").val());
+$(".docs2").text($(".section-select option:selected").text());
+
+//if ( $(".event-select").val()<0) {
+$(".field-select option").remove();
+$("#sortable1").empty();
+
+
+$(".docs").text("Whole Section");
+ for (var scout in members_config.data) {
+  
+   $("#sortable1").append(make_scout(scout, members_config.data[scout].first_name, members_config.data[scout].last_name, members_config.data[scout].patrol, members_config.data[scout].age,members_config.data[scout].patrol_role_level)) ;
+   $(".connectedSortable #"+scout).appendTo(".connectedSortable .head[id='"+members_config.data[scout].patrol+"%%"+members_config.data[scout].patrol_id+"']")   
+}
+set_counts();
+
+}
+
+function get_members_2(text) {
+//members_config = JSON.parse(text);
+url = "https://www.onlinescoutmanager.co.uk/ext/events/event/?action=getStructureForEvent&eventid="+$(".event-select").val()+"&sectionid="+$(".section-select").val();
+do_xhr(url,get_event_detail,"");
+}
+
+function get_event_detail(text)
+{
+event_detail_config = JSON.parse(text);
+event_detail_config_fields = [];
+if (event_detail_config.config!="") {
+event_detail_config_fields = JSON.parse( event_detail_config.config);
+}
+$(".field-select option").remove();
+$("select.field-select").append("<option value='-1'></option>"); // Blank One
+for(property=0; property<event_detail_config_fields.length; property++) {
+ $("select.field-select").append("<option value=\""+event_detail_config_fields[property].id+"\">"+event_detail_config_fields[property].name+"</option>");
+}  
+}
+
+
+function reset_groups() {
+$(".connectedSortable li").each(function(){$(".connectedSortable #"+$(this).attr("id")).appendTo("#sortable1")})
+set_counts();
+
+}
+
+function clear_groups() {
+reset_groups();
+var num = $(".connectedSortable").size();
+for (i=2; i<=num; i++) {
+     $("#sortable"+i).remove();
+   }
+}
+
+function update_builder() {
+ok=true;
+if($(".connectedSortable").size()>1) {
+  ok=confirm("Clear Existing Groups?");
+}
+if (ok) {
+//if ( $(".event-select").val()>0) {
+//url="https://www.onlinescoutmanager.co.uk/ext/events/event/?action=getAttendance&eventid="+ $(".event-select").val()+"&sectionid="+ $(".section-select").val()+"&termid="+ $(".term-select").val()
+//do_xhr(url,update_builder3,"");
+//} else {
+update_patrols();
+url = "https://www.onlinescoutmanager.co.uk/ext/members/contact/grid/?action=getMembers"
+parameters = [];
+parameters['section_id'] =$(".section-select").val();
+parameters['term_id'] = $(".term-select").val();
+do_xhr_post(url,update_builder2,parameters)
+//}
+}
+}
+
+function log_off() {
+security = null;
+$("#osmr_loggedon").toggle("slow");
+$("#osmr_logon").toggle("slow");
+$(".osmr_builder").toggle();
+var num = $(".connectedSortable").size();
+   for (i=2; i<=num; i++) {
+     $("#sortable"+i).remove();
+   }
+$(".docs").text("Make Your Selections above");
+$("#sortable1").empty();
+
+}
+
+function nothing(text)
+{
+//alert(text);
+}
+
+function update_osm()
+{
+ 
+update_osm2();
+}
+function update_osm2(text) {
+ 
+access_ok = true;
+ 
+if (access_ok==false) {
+  alert("You have no access rights to update the Patrols");
+} else {
+queue = new Object();
+var num = $(".connectedSortable").size();
+   for (i=1; i<=num; i++) {
+     $("#sortable"+i+" li").each(function() {queue[$(this).attr("id")] = $("#sortable"+i+" span.head").attr("id")});      
+   }
+//https://www.onlinescoutmanager.co.uk/ext/members/contact/?action=update
+url = "https://www.onlinescoutmanager.co.uk/ext/members/contact/?action=update"
+sectionid = $(".docs2").attr("id");
+	//eventid = $(".docs").attr("id")
+//columnid = $(".field-select").val();
+//if ((eventid>0)&&(columnid!=-1)) {
+if (confirm("Update OSM with Values?")) {
+parameters = [];
+parameters['sectionid'] = sectionid;
+parameters['column'] = 'patrolid';
+parameters['context'] = 'members';
+url_list=[];
+for (var property in queue) {
+parameters['scoutid'] = property;
+if (queue[property]==undefined) {
+parameters['value'] = 0;
+} else {
+parameters['value'] = queue[property].substring(queue[property].indexOf("%%")+2,100)
+}
+//do_xhr_post(url,nothing,parameters)
+get_entry = new Object;
+ 
+get_entry.url = url;
+get_entry.section = sectionid;
+ 
+get_entry.params = new Array;
+get_entry.params['sectionid'] = sectionid;
+get_entry.params['column'] = 'patrolid';
+get_entry.params['context'] = 'members';
+get_entry.params['scoutid'] = property;
+if (queue[property]==undefined) {
+get_entry.params['value'] = 0;
+} else {
+get_entry.params['value'] = queue[property].substring(queue[property].indexOf("%%")+2,100)
+}
+ 
+
+//get_entry.data.events = "";
+url_list.push(get_entry);
+} // For
+$(".connectedSortable").toggle();
+$(".docs").text("Updating - Please Wait this can take a while for a large section");
+do_xhr_list(0,osm_updated)
+
+}
+
+}
+}
+
+function osm_updated() {
+    $(".connectedSortable").toggle();
+    alert("OSM Updated");
+    $(".docs").text("Whole Section");
+}
+
+function print_groups() {
+  var pdf_doc = new Object;
+  pdf_doc.styles = {
+header:{
+fontSize: 18,
+			bold: true,
+			margin: [0, 0, 0, 10]
+		},
+		subheader: {
+			fontSize: 16,
+			bold: true,
+			margin: [0, 10, 0, 5]
+		},
+		tableExample: {
+			margin: [0, 5, 0, 15]
+		},
+		tableHeader: {
+			bold: true,
+			fontSize: 13,
+			color: 'black'
+		}
+	}
+  pdf_doc.defaultStyle = {
+		// alignment: 'justify'
+	} 		;
+  pdf_doc.content = [];
+  pdf_create = {};
+  pdf_create.text = $(".docs2").text();
+  pdf_create.style = "header";
+  pdf_doc.content.push(pdf_create);
+ //pdf_create = {};
+ // pdf_create.text = $(".docs").text();
+ // pdf_create.style = "header";
+ // pdf_doc.content.push(pdf_create);
+    
+  var num = $(".connectedSortable").size();
+  for (i=1; i<=num; i++) {
+    pdf_create = {}; pdf_create.text= $("#sortable"+i+" span.name").text(); 
+    if (i==1) { pdf_create.text="Not Assigned to a Patrol"; }
+    pdf_create.style = "subheader";
+    if ($("#sortable"+i+" li").size()>0){
+    pdf_doc.content.push(pdf_create);
+    }
+    $("#sortable"+i+" li").each(function() {scoutid = $(this).attr("id");
+    pdf_create = {};
+    pdf_create.style = "";
+    pdf_create.text = $(this).html().substring(20,$(this).html().search("<br>"));
+    if ( ($(this).html().substring(12,18))== "scout2") {
+        if (section_config[ $(".docs2").attr("id")].sectionType=='scouts') {
+        pdf_create.text += " (PL)";
+        }
+        if (section_config[ $(".docs2").attr("id")].sectionType=='cubs') {
+        pdf_create.text += " (Sixer)";
+        }
+        if (section_config[ $(".docs2").attr("id")].sectionType=='beavers') {
+        pdf_create.text += " (Lodge Leader)";
+        }
+    }
+     if ( ($(this).html().substring(12,18))== "scout1") {
+        if (section_config[ $(".docs2").attr("id")].sectionType=='scouts') {
+        pdf_create.text += " (APL)";
+        }
+        if (section_config[ $(".docs2").attr("id")].sectionType=='cubs') {
+        pdf_create.text += " (Seconder)";
+        }
+        if (section_config[ $(".docs2").attr("id")].sectionType=='beavers') {
+        pdf_create.text += " (Assistant Lodge Leader)";
+        }
+    }
+      if ( ($(this).html().substring(12,18))== "scout3") {
+         if (section_config[ $(".docs2").attr("id")].sectionType=='scouts') {
+        pdf_create.text += " (SPL)";
+        }
+        if (section_config[ $(".docs2").attr("id")].sectionType=='cubs') {
+        pdf_create.text += " (Senior Sixer)";
+        }
+        if (section_config[ $(".docs2").attr("id")].sectionType=='beavers') {
+        pdf_create.text += " (Senior Lodge Leader)";
+        }
+    }
+    pdf_doc.content.push(pdf_create);
+    })     
+   }
+   
+
+pdfMake.createPdf(pdf_doc).open(); 
+}
+
+    </script>
+</head>
+
+<body>
+    <div class="osmr_toolbar">
+        <span style="font-size:30px">Online Scout Manager Patrol Builder</span>
+        <div id="osmr_logon">
+            <!--<span id="username_block">Username: <input type="text" name="username" id="username"></span>
+<span id="password_block">Password: <input type="password" name="password" id="password">-->
+        <!--    Please goto <a href="https://osmr.free.nf/patrolbuilder.html">https://osmr.free.nf/patrolbuilder.html</a> to
+            use patrol builder--><br>
+            <button type="button" onclick="call_report()" id="logon_button">Log On</button>
+            <div class="g-recaptcha" data-sitekey="6LdrLccaAAAAANO5ATWYHsdRscUBNVcpjCBbhjre"></div>
+        </div>
+        <div id="osmr_loggedon">
+            <button type="button" onclick="log_off()" id="logoff_button">Log Off</button>
+            <span>Section: <select class="section-select"><option></option></select></span>
+            <span>Term: <select class="term-select"><option></option></select></span>
+            <!-- <span>Event: <select class="event-select"><option>Whole Section</option></select></span> -->
+            <button type="button" onclick="update_builder()" id="go_button">Go!</button>
+        </div>
+
+    </div>
+    </div>
+    <div class="osmr_builder">
+        <div>
+            <h3 class="docs2"></h3>
+            <h3 class="docs">Make Your Selections above</h3><br>
+            <!-- Add a New Group: <input type="text" name="fname" id="fname">
+<button type="button" onclick="add_group($('#fname').val());">Add a Group</button><br> -->
+            <button type="button" onclick="reset_groups();">Reset Patrols</button>
+            <!--<button type="button" onclick="clear_groups();">Clear Patrols</button>-->
+            <button type="button" onclick="print_groups();">Print Patrols</button><br>
+            <!-- <span>Field to Update: <select class="field-select"><option></option></select></span>-->
+            <button type="button" onclick="update_osm();">Update Patrols</button>
+        </div>
+        <ul id="sortable1" class="connectedSortable grid gridcolor1">
+            <span class="label">Count:</span>
+
+        </ul>
+
+    </div>
+</body>
+
+</html>
